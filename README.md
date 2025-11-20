@@ -42,5 +42,6 @@
 
 ### 1. Инсталация
 
+cd app
 npm install
 npx expo start
