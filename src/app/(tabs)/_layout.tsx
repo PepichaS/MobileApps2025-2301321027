@@ -1,6 +1,6 @@
 import { Tabs } from "expo-router";
 import React from "react";
-import { Plus, CalendarDays, Home, LineChart } from "lucide-react-native";
+import { CalendarDays, Home, LineChart } from "lucide-react-native";
 import { useColorScheme } from "nativewind";
 import { Icon } from "@/components/ui/Icon";
 import { THEME } from "@/lib/theme";
@@ -31,19 +31,9 @@ export default function TabsLayout() {
           backgroundColor: colors.card,
           borderTopColor: colors.border,
         },
-        tabBarIcon: ({ focused, size }) => {
+        tabBarIcon: ({ size }) => {
           if (route.name === "index") {
             return <Icon as={Home} size={size} className="text-primary" />;
-          }
-
-          if (route.name === "add") {
-            return (
-              <Icon
-                as={Plus}
-                size={focused ? size + 8 : size + 4}
-                className="text-primary"
-              />
-            );
           }
 
           if (route.name === "calendar") {
@@ -53,9 +43,7 @@ export default function TabsLayout() {
           }
 
           if (route.name === "progress") {
-            return (
-              <Icon as={LineChart} size={size} className="text-primary" />
-            );
+            return <Icon as={LineChart} size={size} className="text-primary" />;
           }
 
           return null;
@@ -66,12 +54,6 @@ export default function TabsLayout() {
         name="index"
         options={{
           title: "Dashboard",
-        }}
-      />
-      <Tabs.Screen
-        name="add"
-        options={{
-          title: "Add",
         }}
       />
       <Tabs.Screen
