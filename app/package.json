@@ -34,6 +34,7 @@
     "react-native-css-interop": "^0.2.1",
     "react-native-reanimated": "~3.17.4",
     "react-native-safe-area-context": "^5.4.0",
+    "react-native-screens": "^4.18.0",
     "react-native-web": "^0.21.0",
     "tailwind-merge": "^3.4.0",
     "tailwindcss-animate": "^1.0.7"
