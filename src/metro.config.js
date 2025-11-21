@@ -8,6 +8,6 @@ const config = getDefaultConfig(__dirname, {
 });
 
 module.exports = withNativeWind(config, {
-  input: "./src/styles/global.css",
+  input: "./resources/styles/global.css",
   inlineRem: 16,
 });

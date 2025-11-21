@@ -21,8 +21,8 @@
 | Reminder Notifications | Часово напомняне                             |
 | Camera Intent          | Снимка като доказателство                    |
 | GPS                    | Локация за навика                            |
-| Local DB               | AsyncStorage или SQLite                      |
-| Dark / Light Mode      | Material 3 стилове                           |
+| Local DB               | AsyncStorage                                 |
+| Dark / Light Mode      | Nativewind + reactnativereusables            |
 
 ---
 
