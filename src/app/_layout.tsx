@@ -8,7 +8,7 @@ import { useColorScheme } from "nativewind";
 import { StatusBar } from "expo-status-bar";
 import { PortalHost } from "@rn-primitives/portal";
 
-import { NAV_THEME } from "@/lib/theme";
+import { NAV_THEME, THEME } from "@/lib/theme";
 
 function RootStack() {
   const { colorScheme } = useColorScheme();
@@ -24,7 +24,23 @@ function RootStack() {
           <Stack.Screen
             name="habit/[id]"
             options={{
-              title: "Habit Details",
+              headerTitle: "Habit Details",
+              headerBackButtonDisplayMode: "minimal",
+              headerStyle: {
+                backgroundColor: THEME[theme].background,
+              },
+              headerShadowVisible: false,
+            }}
+          />
+          <Stack.Screen
+            name="habit/add"
+            options={{
+              headerTitle: "New Habit",
+              headerBackButtonDisplayMode: "minimal",
+              headerStyle: {
+                backgroundColor: THEME[theme].background,
+              },
+              headerShadowVisible: false,
             }}
           />
         </Stack>
