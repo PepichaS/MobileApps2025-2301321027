@@ -1,5 +1,6 @@
 import React, { useCallback, useState } from "react";
 import { FlatList, Pressable, View } from "react-native";
+import * as Notifications from "expo-notifications";
 import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
 
@@ -7,6 +8,7 @@ import { Button } from "@/components/ui/Button";
 import { Text } from "@/components/ui/Text";
 import type { Habit } from "@/models/Habit";
 import { loadHabits } from "@/storage/HabitStorage";
+import { SchedulableTriggerInputTypes } from "expo-notifications";
 
 export default function Dashboard() {
   const router = useRouter();
@@ -28,6 +30,20 @@ export default function Dashboard() {
       void refreshHabits();
     }, [])
   );
+
+  // TODO: Test notification button
+  function handleTestNotification() {
+    Notifications.scheduleNotificationAsync({
+      content: {
+        title: "Test notification",
+        body: "If you see this, notifications are working.",
+      },
+      trigger: {
+        type: SchedulableTriggerInputTypes.TIME_INTERVAL,
+        seconds: 5,
+      },
+    });
+  }
 
   function handleAddHabit() {
     router.push("/habit/add");
@@ -55,11 +71,7 @@ export default function Dashboard() {
 
   function renderHabitsSection() {
     if (isLoading) {
-      return (
-        <Text variant="muted">
-          Loading your habits...
-        </Text>
-      );
+      return <Text variant="muted">Loading your habits...</Text>;
     }
 
     if (habits.length === 0) {
@@ -96,6 +108,10 @@ export default function Dashboard() {
       <View className="gap-3">
         <Button onPress={handleAddHabit}>
           <Text>New habit</Text>
+        </Button>
+        {/* TODO: Test notification button */}
+        <Button onPress={handleTestNotification} variant="outline">
+          <Text>Test notification</Text>
         </Button>
 
         <View className="p-4 mt-4 rounded-xl border border-border bg-card">
