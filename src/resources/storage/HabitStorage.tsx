@@ -1,6 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-
-import type { Habit } from "@/models/Habit";
+import type { Habit, HabitProof } from "@/models/Habit";
 
 const HABITS_STORAGE_KEY = "habits";
 
@@ -57,4 +56,33 @@ async function deleteHabit(id: string): Promise<void> {
   await persistHabits(nextHabits);
 }
 
-export { saveHabit, loadHabits, updateHabit, deleteHabit };
+async function addHabitProof(
+  habitId: string,
+  dateKey: string,
+  proof: HabitProof
+): Promise<void> {
+  const habits = await loadHabits();
+
+  const nextHabits = habits.map(function mapHabit(habit) {
+    if (habit.id !== habitId) {
+      return habit;
+    }
+
+    const existingProofsByDate = habit.proofsByDate ?? {};
+    const existingProofsForDay = existingProofsByDate[dateKey] ?? [];
+
+    const nextProofsByDate = {
+      ...existingProofsByDate,
+      [dateKey]: [...existingProofsForDay, proof],
+    };
+
+    return {
+      ...habit,
+      proofsByDate: nextProofsByDate,
+    };
+  });
+
+  await persistHabits(nextHabits);
+}
+
+export { saveHabit, loadHabits, updateHabit, deleteHabit, addHabitProof };

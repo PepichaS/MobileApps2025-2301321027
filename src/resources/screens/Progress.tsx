@@ -22,6 +22,9 @@ function getOverallStats(habits: Habit[]) {
       bestStreak: 0,
       averageStreak: 0,
       completionPercent: 0,
+      totalProofs: 0,
+      daysWithProof: 0,
+      habitsWithProof: 0,
     };
   }
 
@@ -30,12 +33,31 @@ function getOverallStats(habits: Habit[]) {
   let totalStreak = 0;
   let bestStreak = 0;
   let totalGoalDays = 0;
+  let totalProofs = 0;
+  let daysWithProof = 0;
+  let habitsWithProof = 0;
 
   habits.forEach(function forEachHabit(habit) {
     totalCompletions += habit.history.length;
     totalStreak += habit.currentStreak;
     bestStreak = Math.max(bestStreak, habit.currentStreak);
     totalGoalDays += habit.goalDays;
+
+    if (habit.proofsByDate) {
+      let proofsForHabit = 0;
+
+      Object.values(habit.proofsByDate).forEach(function forEachProofArray(proofs) {
+        if (proofs && proofs.length > 0) {
+          daysWithProof += 1;
+          totalProofs += proofs.length;
+          proofsForHabit += proofs.length;
+        }
+      });
+
+      if (proofsForHabit > 0) {
+        habitsWithProof += 1;
+      }
+    }
   });
 
   const averageStreak = totalStreak / totalHabits;
@@ -50,6 +72,9 @@ function getOverallStats(habits: Habit[]) {
     bestStreak,
     averageStreak,
     completionPercent,
+    totalProofs,
+    daysWithProof,
+    habitsWithProof,
   };
 }
 
@@ -96,6 +121,15 @@ export default function Progress() {
         habit.goalDays > 0
           ? Math.min(100, (completedDays / habit.goalDays) * 100)
           : 0;
+      const proofDates = habit.proofsByDate
+        ? Object.values(habit.proofsByDate).filter(function filterProofs(proofs) {
+            return proofs && proofs.length > 0;
+          })
+        : [];
+      const proofDays = proofDates.length;
+      const proofCount = proofDates.reduce(function reduceProofs(total, proofs) {
+        return total + (proofs ? proofs.length : 0);
+      }, 0);
 
       return (
         <View key={habit.id} className="mb-4">
@@ -104,6 +138,13 @@ export default function Progress() {
             {completedDays} / {habit.goalDays} days completed
           </Text>
           <ProgressBar value={ratio} />
+          {proofCount > 0 && (
+            <Text variant="muted" className="mt-1">
+              {proofDays}{" "}
+              {proofDays === 1 ? "day" : "days"} with proof, {proofCount}{" "}
+              {proofCount === 1 ? "proof" : "proofs"} total
+            </Text>
+          )}
         </View>
       );
     });
@@ -160,6 +201,28 @@ export default function Progress() {
                 </Text>{" "}
                 days
               </Text>
+              {overall.totalProofs > 0 && (
+                <>
+                  <Text>
+                    <Text className="font-semibold">
+                      {overall.daysWithProof}
+                    </Text>{" "}
+                    {overall.daysWithProof === 1 ? "day" : "days"} with proof
+                  </Text>
+                  <Text>
+                    <Text className="font-semibold">
+                      {overall.totalProofs}
+                    </Text>{" "}
+                    {overall.totalProofs === 1 ? "proof" : "proofs"} captured
+                    {" · "}
+                    <Text className="font-semibold">
+                      {overall.habitsWithProof}
+                    </Text>{" "}
+                    {overall.habitsWithProof === 1 ? "habit" : "habits"} with at
+                    least one proof
+                  </Text>
+                </>
+              )}
               <View className="mt-3">
                 <Text className="mb-1">
                   Overall completion towards goals:{" "}

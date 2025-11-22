@@ -1,10 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { View } from "react-native";
+import { Pressable, View } from "react-native";
+import { useRouter } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
 import { Calendar as RNCalendar } from "react-native-calendars";
+import { useColorScheme } from "nativewind";
 import { Text } from "@/components/ui/Text";
 import type { Habit } from "@/models/Habit";
 import { loadHabits } from "@/storage/HabitStorage";
+import { THEME } from "@/lib/theme";
 
 type MarkedDateEntry = {
   marked?: boolean;
@@ -19,17 +22,34 @@ function buildMarkedDatesFromHabits(
   habits: Habit[],
   selectedDate: string | null
 ): MarkedDates {
-  const counts: Record<string, number> = {};
+  const completionCounts: Record<string, number> = {};
+  const proofDates = new Set<string>();
 
   habits.forEach(function forEachHabit(habit) {
     habit.history.forEach(function forEachDate(dateKey) {
-      counts[dateKey] = (counts[dateKey] ?? 0) + 1;
+      completionCounts[dateKey] = (completionCounts[dateKey] ?? 0) + 1;
     });
+
+    if (habit.proofsByDate) {
+      Object.entries(habit.proofsByDate).forEach(function forEachProofEntry([
+        dateKey,
+        proofs,
+      ]) {
+        if (proofs && proofs.length > 0) {
+          proofDates.add(dateKey);
+        }
+      });
+    }
   });
 
   const marked: MarkedDates = {};
 
-  Object.entries(counts).forEach(function forEachEntry([dateKey, count]) {
+  Object.entries(completionCounts).forEach(function forEachEntry([
+    dateKey,
+    count,
+  ]) {
+    const hasProof = proofDates.has(dateKey);
+
     let dotColor = "#22c55e"; // light green for 1
 
     if (count >= 3) {
@@ -38,18 +58,22 @@ function buildMarkedDatesFromHabits(
       dotColor = "#4ade80";
     }
 
+    // If there is at least one proof on that date, tint the dot blue to highlight it.
+    if (hasProof) {
+      dotColor = "#3b82f6";
+    }
+
     marked[dateKey] = {
+      ...(marked[dateKey] ?? {}),
       marked: true,
       dotColor,
-      selected: selectedDate === dateKey,
-      selectedColor: selectedDate === dateKey ? "#111827" : undefined,
     };
   });
 
-  if (selectedDate && !marked[selectedDate]) {
+  if (selectedDate) {
     marked[selectedDate] = {
+      ...(marked[selectedDate] ?? {}),
       selected: true,
-      selectedColor: "#111827",
     };
   }
 
@@ -57,6 +81,9 @@ function buildMarkedDatesFromHabits(
 }
 
 export default function Calendar() {
+  const router = useRouter();
+  const { colorScheme } = useColorScheme();
+  const theme = THEME[colorScheme === "dark" ? "dark" : "light"];
   const [habits, setHabits] = useState<Habit[]>([]);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [markedDates, setMarkedDates] = useState<MarkedDates>({});
@@ -92,8 +119,33 @@ export default function Calendar() {
     [habits, selectedDate]
   );
 
+  const selectedDateProofCount = useMemo(
+    function computeSelectedDateProofCount() {
+      if (!selectedDate) {
+        return 0;
+      }
+
+      let totalProofs = 0;
+
+      habits.forEach(function forEachHabit(habit) {
+        const proofsForDay = habit.proofsByDate?.[selectedDate];
+
+        if (proofsForDay && proofsForDay.length > 0) {
+          totalProofs += proofsForDay.length;
+        }
+      });
+
+      return totalProofs;
+    },
+    [habits, selectedDate]
+  );
+
   function handleDayPress(day: { dateString: string }) {
     setSelectedDate(day.dateString);
+  }
+
+  function handleOpenHabit(habitId: string) {
+    router.push(`/habit/${habitId}`);
   }
 
   return (
@@ -105,22 +157,59 @@ export default function Calendar() {
         Days with completed habits are marked. Darker dots mean more habits.
       </Text>
 
-      <RNCalendar markedDates={markedDates} onDayPress={handleDayPress} />
+      <RNCalendar
+        key={colorScheme}
+        markedDates={markedDates}
+        onDayPress={handleDayPress}
+        theme={{
+          calendarBackground: theme.card,
+          dayTextColor: theme.foreground,
+          textDisabledColor: theme.mutedForeground,
+          todayTextColor: theme.primary,
+          monthTextColor: theme.foreground,
+          arrowColor: theme.primary,
+          selectedDayBackgroundColor: theme.secondary,
+          selectedDayTextColor: theme.secondaryForeground,
+        }}
+      />
 
       {selectedDate && (
         <View className="gap-2 mt-6">
           <Text variant="large">
             {selectedDate} – {selectedDateHabits.length}{" "}
             {selectedDateHabits.length === 1 ? "habit" : "habits"} completed
+            {selectedDateProofCount > 0 && (
+              <Text>
+                {" "}
+                · {selectedDateProofCount}{" "}
+                {selectedDateProofCount === 1 ? "proof" : "proofs"}
+              </Text>
+            )}
           </Text>
 
           {selectedDateHabits.length > 0 ? (
             <View className="gap-1">
               {selectedDateHabits.map(function mapHabit(habit) {
+                const proofsForDay = habit.proofsByDate?.[selectedDate] ?? [];
+                const proofCount = proofsForDay.length;
+
                 return (
-                  <Text key={habit.id} variant="muted">
-                    • {habit.title}
-                  </Text>
+                  <Pressable
+                    key={habit.id}
+                    onPress={function onPress() {
+                      handleOpenHabit(habit.id);
+                    }}
+                  >
+                    <Text variant="muted">
+                      • {habit.title}
+                      {proofCount > 0 && (
+                        <Text>
+                          {" "}
+                          – {proofCount} {proofCount === 1 ? "proof" : "proofs"}
+                        </Text>
+                      )}
+                    </Text>
+                  </Pressable>
                 );
               })}
             </View>
@@ -134,5 +223,3 @@ export default function Calendar() {
     </View>
   );
 }
-
-
