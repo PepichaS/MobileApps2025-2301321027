@@ -30,7 +30,24 @@
       "favicon": "./assets/favicon.png",
       "bundler": "metro"
     },
-    "plugins": ["expo-router", "expo-notifications"],
+    "plugins": [
+      "expo-router",
+      "expo-notifications",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow $(PRODUCT_NAME) to access your photos so you can attach habit proof.",
+          "cameraPermission": "Allow $(PRODUCT_NAME) to open the camera to capture habit proof.",
+          "microphonePermission": false
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Allow $(PRODUCT_NAME) to access your location while using the app to attach GPS proof to habits."
+        }
+      ]
+    ],
     "experiments": {
       "typedRoutes": true
     }

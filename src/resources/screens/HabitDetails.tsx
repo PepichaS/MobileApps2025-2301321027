@@ -1,12 +1,30 @@
-import React, { useCallback, useMemo, useState } from "react";
-import { Alert, ScrollView, View } from "react-native";
+import React, { useCallback, useMemo, useState, useEffect } from "react";
+import { Alert as RNAlert, Image, ScrollView, View } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { useLocalSearchParams, useRouter } from "expo-router";
-
 import { Button } from "@/components/ui/Button";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/Alert";
 import { Text } from "@/components/ui/Text";
-import type { Habit } from "@/models/Habit";
-import { deleteHabit, loadHabits, updateHabit } from "@/storage/HabitStorage";
+import { Input } from "@/components/ui/Input";
+import { Label } from "@/components/ui/Label";
+import { Switch } from "@/components/ui/Switch";
+import type { Habit, HabitProof } from "@/models/Habit";
+import {
+  deleteHabit,
+  loadHabits,
+  updateHabit,
+  addHabitProof,
+} from "@/storage/HabitStorage";
+import {
+  cancelHabitReminder,
+  scheduleHabitReminder,
+} from "@/services/NotificationService";
+import { AlertCircle, CheckCircle2, Trash2 } from "lucide-react-native";
+import { useInlineAlert } from "@/hooks/useInlineAlert";
+import { Textarea } from "@/components/ui/Textarea";
+import { Icon } from "@/components/ui/Icon";
+import * as ImagePicker from "expo-image-picker";
+import * as Location from "expo-location";
 
 function getTodayKey(): string {
   const today = new Date();
@@ -67,6 +85,48 @@ function computeStreak(history: string[]): number {
   return computeConsecutiveStreakFrom(lastKey, completedDays);
 }
 
+function formatTime(isoString: string): string {
+  const date = new Date(isoString);
+
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+
+  return `${hours}:${minutes}`;
+}
+
+function isValidTimeString(value: string): boolean {
+  const trimmed = value.trim();
+
+  if (!trimmed) {
+    return false;
+  }
+
+  const parts = trimmed.split(":");
+
+  if (parts.length !== 2) {
+    return false;
+  }
+
+  const [hourString, minuteString] = parts;
+  const hour = Number(hourString);
+  const minute = Number(minuteString);
+
+  if (
+    Number.isNaN(hour) ||
+    Number.isNaN(minute) ||
+    !Number.isInteger(hour) ||
+    !Number.isInteger(minute)
+  ) {
+    return false;
+  }
+
+  return hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59;
+}
+
 export default function HabitDetails() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id?: string }>();
@@ -74,6 +134,13 @@ export default function HabitDetails() {
   const [habit, setHabit] = useState<Habit | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isUpdating, setIsUpdating] = useState<boolean>(false);
+  const { inlineAlert, showInlineAlert } = useInlineAlert();
+  const [reminderEnabled, setReminderEnabled] = useState(false);
+  const [reminderTime, setReminderTime] = useState("20:00");
+  const [isEditingInfo, setIsEditingInfo] = useState(false);
+  const [editTitle, setEditTitle] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+  const [editGoalDays, setEditGoalDays] = useState("");
 
   const todayKey = getTodayKey();
 
@@ -84,6 +151,29 @@ export default function HabitDetails() {
 
     return habit.history.includes(todayKey);
   }, [habit, todayKey]);
+
+  useEffect(
+    function syncReminderFromHabit() {
+      if (!habit) {
+        setReminderEnabled(false);
+        setIsEditingInfo(false);
+        return;
+      }
+
+      if (habit.reminder) {
+        setReminderEnabled(habit.reminder.enabled);
+        setReminderTime(habit.reminder.time);
+      } else {
+        setReminderEnabled(false);
+      }
+
+      // When a new habit is loaded, keep the latest data ready for editing.
+      setEditTitle(habit.title);
+      setEditDescription(habit.description ?? "");
+      setEditGoalDays(String(habit.goalDays));
+    },
+    [habit]
+  );
 
   async function refreshHabit() {
     if (!id) {
@@ -115,6 +205,17 @@ export default function HabitDetails() {
       return;
     }
 
+    const proofsForToday = habit.proofsByDate?.[todayKey] ?? [];
+
+    if (habit.history.includes(todayKey) && proofsForToday.length > 0) {
+      showInlineAlert(
+        "destructive",
+        "Cannot unmark today",
+        "Remove today’s proofs first before unmarking this habit."
+      );
+      return;
+    }
+
     try {
       setIsUpdating(true);
 
@@ -126,19 +227,173 @@ export default function HabitDetails() {
           })
         : [...habit.history, todayKey];
 
+      const nextCompletionTimesByDate = {
+        ...(habit.completionTimesByDate ?? {}),
+      };
+
+      if (alreadyCompleted) {
+        // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
+        delete nextCompletionTimesByDate[todayKey];
+      } else {
+        nextCompletionTimesByDate[todayKey] = new Date().toISOString();
+      }
+
       const updatedHabit: Habit = {
         ...habit,
         history: nextHistory,
         currentStreak: computeStreak(nextHistory),
+        completionTimesByDate: nextCompletionTimesByDate,
       };
 
       setHabit(updatedHabit);
       await updateHabit(updatedHabit);
+
+      showInlineAlert(
+        "default",
+        alreadyCompleted ? "Marked as incomplete" : "Marked as done",
+        alreadyCompleted
+          ? "Today has been unmarked for this habit."
+          : "Nice work! Today is now counted towards your streak."
+      );
     } catch (error) {
       console.error("Failed to update habit", error);
-      Alert.alert(
+      showInlineAlert(
+        "destructive",
         "Update failed",
         "We could not update this habit right now. Please try again."
+      );
+    } finally {
+      setIsUpdating(false);
+    }
+  }
+
+  async function handleAddTodayProof() {
+    if (!habit) {
+      return;
+    }
+
+    try {
+      const cameraPermission =
+        await ImagePicker.requestCameraPermissionsAsync();
+
+      if (cameraPermission.status !== "granted") {
+        showInlineAlert(
+          "destructive",
+          "Camera permission denied",
+          "We need camera access to attach a photo as proof."
+        );
+        return;
+      }
+
+      const photoResult = await ImagePicker.launchCameraAsync({
+        quality: 0.7,
+        base64: false,
+      });
+
+      if (
+        photoResult.canceled ||
+        !photoResult.assets ||
+        photoResult.assets.length === 0
+      ) {
+        showInlineAlert(
+          "destructive",
+          "No photo captured",
+          "We could not capture a photo. Please try again."
+        );
+        return;
+      }
+
+      const asset = photoResult.assets[0];
+
+      let proofLocation: { latitude: number; longitude: number } | undefined;
+
+      try {
+        const locationPermission =
+          await Location.requestForegroundPermissionsAsync();
+
+        if (locationPermission.status === "granted") {
+          const currentLocation = await Location.getCurrentPositionAsync({});
+          proofLocation = {
+            latitude: currentLocation.coords.latitude,
+            longitude: currentLocation.coords.longitude,
+          };
+        }
+      } catch (locationError) {
+        console.error("Failed to get location for habit proof", locationError);
+      }
+
+      const proof: HabitProof = {
+        photoUri: asset.uri,
+        location: proofLocation,
+        createdAt: new Date().toISOString(),
+      };
+
+      await addHabitProof(habit.id, todayKey, proof);
+      await refreshHabit();
+
+      showInlineAlert(
+        "default",
+        "Proof added",
+        "Your photo and location (if available) were attached for today."
+      );
+    } catch (error) {
+      console.error("Failed to add habit proof", error);
+      showInlineAlert(
+        "destructive",
+        "Could not add proof",
+        "We could not attach proof for this habit today. Please try again."
+      );
+    }
+  }
+
+  async function handleDeleteTodayProof(index: number) {
+    if (!habit || isUpdating) {
+      return;
+    }
+
+    const existingProofsByDate = habit.proofsByDate ?? {};
+    const proofsForDay = existingProofsByDate[todayKey] ?? [];
+
+    if (index < 0 || index >= proofsForDay.length) {
+      return;
+    }
+
+    const nextProofsForDay = proofsForDay.filter(function filterProofs(_, i) {
+      return i !== index;
+    });
+
+    const nextProofsByDate: Habit["proofsByDate"] = { ...existingProofsByDate };
+
+    if (nextProofsForDay.length > 0) {
+      nextProofsByDate[todayKey] = nextProofsForDay;
+    } else {
+      // Remove the key entirely if there are no proofs left for today.
+      // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
+      delete nextProofsByDate[todayKey];
+    }
+
+    try {
+      setIsUpdating(true);
+
+      const updatedHabit: Habit = {
+        ...habit,
+        proofsByDate: nextProofsByDate,
+      };
+
+      await updateHabit(updatedHabit);
+      setHabit(updatedHabit);
+
+      showInlineAlert(
+        "default",
+        "Proof deleted",
+        "The selected proof has been removed for today."
+      );
+    } catch (error) {
+      console.error("Failed to delete habit proof", error);
+      showInlineAlert(
+        "destructive",
+        "Delete failed",
+        "We could not delete this proof right now. Please try again."
       );
     } finally {
       setIsUpdating(false);
@@ -150,7 +405,7 @@ export default function HabitDetails() {
       return;
     }
 
-    Alert.alert(
+    RNAlert.alert(
       "Delete habit",
       `Are you sure you want to delete "${habit.title}"?`,
       [
@@ -175,14 +430,166 @@ export default function HabitDetails() {
     }
 
     try {
+      if (habit.reminderNotificationId) {
+        await cancelHabitReminder(habit.reminderNotificationId);
+      }
+
       await deleteHabit(habit.id);
       router.back();
     } catch (error) {
       console.error("Failed to delete habit", error);
-      Alert.alert(
+      showInlineAlert(
+        "destructive",
         "Delete failed",
         "We could not delete this habit right now. Please try again."
       );
+    }
+  }
+
+  async function handleSaveHabitInfo() {
+    if (!habit) {
+      return;
+    }
+
+    const cleanedTitle = editTitle.trim();
+    const cleanedDescription = editDescription.trim();
+    const parsedGoalDays = Number(editGoalDays);
+
+    if (!cleanedTitle || Number.isNaN(parsedGoalDays) || parsedGoalDays <= 0) {
+      showInlineAlert(
+        "destructive",
+        "Check habit info",
+        "Please enter a name and a positive number of target days."
+      );
+      return;
+    }
+
+    try {
+      setIsUpdating(true);
+
+      const updatedHabit: Habit = {
+        ...habit,
+        title: cleanedTitle,
+        description: cleanedDescription || undefined,
+        goalDays: parsedGoalDays,
+      };
+
+      await updateHabit(updatedHabit);
+      setHabit(updatedHabit);
+      setIsEditingInfo(false);
+
+      showInlineAlert(
+        "default",
+        "Habit updated",
+        "The habit information has been saved."
+      );
+    } catch (error) {
+      console.error("Failed to update habit info", error);
+      showInlineAlert(
+        "destructive",
+        "Update failed",
+        "We could not update this habit right now. Please try again."
+      );
+    } finally {
+      setIsUpdating(false);
+    }
+  }
+
+  function handleStartEditInfo() {
+    if (!habit) {
+      return;
+    }
+
+    setEditTitle(habit.title);
+    setEditDescription(habit.description ?? "");
+    setEditGoalDays(String(habit.goalDays));
+    setIsEditingInfo(true);
+  }
+
+  function handleCancelEditInfo() {
+    if (!habit) {
+      setIsEditingInfo(false);
+      return;
+    }
+
+    setEditTitle(habit.title);
+    setEditDescription(habit.description ?? "");
+    setEditGoalDays(String(habit.goalDays));
+    setIsEditingInfo(false);
+  }
+
+  async function handleSaveReminder() {
+    if (!habit) {
+      return;
+    }
+
+    const cleanedTime = reminderTime.trim();
+
+    if (reminderEnabled && !isValidTimeString(cleanedTime)) {
+      showInlineAlert(
+        "destructive",
+        "Check reminder time",
+        "Please enter a valid reminder time in 24h format, e.g. 08:30 or 20:00."
+      );
+      return;
+    }
+
+    try {
+      setIsUpdating(true);
+
+      let nextNotificationId: string | null =
+        habit.reminderNotificationId ?? null;
+
+      if (habit.reminderNotificationId) {
+        await cancelHabitReminder(habit.reminderNotificationId);
+        nextNotificationId = null;
+      }
+
+      if (reminderEnabled && isValidTimeString(cleanedTime)) {
+        const scheduledId = await scheduleHabitReminder(habit.id, habit.title, {
+          time: cleanedTime,
+          enabled: true,
+        });
+
+        nextNotificationId = scheduledId ?? null;
+
+        if (!scheduledId) {
+          showInlineAlert(
+            "destructive",
+            "Notifications disabled",
+            "We could not enable a reminder for this habit. Please check your notification permissions."
+          );
+        }
+      }
+
+      const updatedHabit: Habit = {
+        ...habit,
+        reminder: reminderEnabled
+          ? {
+              time: cleanedTime,
+              enabled: true,
+            }
+          : undefined,
+        reminderNotificationId: nextNotificationId,
+      };
+
+      await updateHabit(updatedHabit);
+      setHabit(updatedHabit);
+
+      showInlineAlert(
+        "default",
+        "Reminder updated",
+        "The reminder settings for this habit have been saved."
+      );
+    } catch (error) {
+      console.error("Failed to update reminder", error);
+      showInlineAlert(
+        "destructive",
+        "Reminder update failed",
+        "We could not update the reminder right now. Please try again."
+      );
+    } finally {
+      setIsUpdating(false);
     }
   }
 
@@ -193,21 +600,150 @@ export default function HabitDetails() {
 
     if (!habit) {
       return (
-        <Text variant="muted">
-          This habit could not be found. It may have been deleted.
-        </Text>
+        <>
+          {inlineAlert && (
+            <Alert
+              variant={inlineAlert.variant}
+              icon={
+                inlineAlert.variant === "destructive"
+                  ? AlertCircle
+                  : CheckCircle2
+              }
+              className="mb-4"
+            >
+              <AlertTitle>{inlineAlert.title}</AlertTitle>
+              <AlertDescription>{inlineAlert.message}</AlertDescription>
+            </Alert>
+          )}
+
+          <Text variant="muted">
+            This habit could not be found. It may have been deleted.
+          </Text>
+        </>
       );
     }
 
     return (
       <>
-        <Text variant="h1" className="mb-2">
-          {habit.title}
-        </Text>
+        {inlineAlert && (
+          <Alert
+            variant={inlineAlert.variant}
+            icon={
+              inlineAlert.variant === "destructive" ? AlertCircle : CheckCircle2
+            }
+            className="mb-4"
+          >
+            <AlertTitle>{inlineAlert.title}</AlertTitle>
+            <AlertDescription>{inlineAlert.message}</AlertDescription>
+          </Alert>
+        )}
 
-        <Text variant="muted" className="mb-4">
-          Target {habit.goalDays} days · Current streak {habit.currentStreak}
-        </Text>
+        {isEditingInfo ? (
+          <View className="gap-3 mb-4">
+            <Text variant="h1" className="mb-1">
+              Edit habit
+            </Text>
+
+            <View className="gap-2">
+              <Label>Habit name</Label>
+              <Input
+                value={editTitle}
+                onChangeText={setEditTitle}
+                placeholder="Habit title"
+              />
+            </View>
+
+            <View className="gap-2">
+              <Label>Description</Label>
+              <Textarea
+                value={editDescription}
+                onChangeText={setEditDescription}
+                placeholder="Why is this habit important?"
+              />
+            </View>
+
+            <View className="gap-2">
+              <Label>Target days</Label>
+              <Input
+                value={editGoalDays}
+                onChangeText={setEditGoalDays}
+                keyboardType="number-pad"
+              />
+            </View>
+
+            <View className="flex-row gap-3 mt-2">
+              <Button
+                onPress={handleSaveHabitInfo}
+                disabled={isUpdating}
+                className="flex-1"
+              >
+                <Text>Save</Text>
+              </Button>
+              <Button
+                variant="outline"
+                disabled={isUpdating}
+                onPress={handleCancelEditInfo}
+                className="flex-1"
+              >
+                <Text>Cancel</Text>
+              </Button>
+            </View>
+          </View>
+        ) : (
+          <View className="gap-2 mb-4">
+            <Text variant="h1" className="mb-1">
+              {habit.title}
+            </Text>
+
+            {habit.description && (
+              <Text variant="muted">{habit.description}</Text>
+            )}
+
+            <Text variant="muted">
+              Target {habit.goalDays} days · Current streak{" "}
+              {habit.currentStreak}
+            </Text>
+
+            <Button
+              variant="outline"
+              onPress={handleStartEditInfo}
+              disabled={isUpdating}
+              className="mt-1"
+            >
+              <Text>Edit habit info</Text>
+            </Button>
+          </View>
+        )}
+
+        <View className="gap-2 mb-4">
+          <View className="flex-row justify-between items-center">
+            <Label>Reminder</Label>
+            <Switch
+              checked={reminderEnabled}
+              onCheckedChange={function onToggle(checked) {
+                setReminderEnabled(Boolean(checked));
+              }}
+            />
+          </View>
+          <Input
+            placeholder="08:30"
+            value={reminderTime}
+            onChangeText={setReminderTime}
+            editable={reminderEnabled}
+          />
+          {habit.reminder?.enabled && (
+            <Text variant="muted">
+              Current reminder time: {habit.reminder.time}
+            </Text>
+          )}
+          <Button
+            variant="outline"
+            disabled={isUpdating}
+            onPress={handleSaveReminder}
+          >
+            <Text>Save reminder</Text>
+          </Button>
+        </View>
 
         <View className="gap-3 px-4 py-3 mb-6 rounded-xl border border-border bg-card">
           <Text variant="large" className="mb-1">
@@ -218,15 +754,83 @@ export default function HabitDetails() {
             going.
           </Text>
 
+          {habit.completionTimesByDate?.[todayKey] && (
+            <Text variant="muted" className="text-xs">
+              Completed at {formatTime(habit.completionTimesByDate[todayKey]!)}
+            </Text>
+          )}
+
           <Button
             onPress={handleToggleToday}
-            disabled={isUpdating}
+            disabled={
+              isUpdating ||
+              (isCompletedToday &&
+                Boolean(habit.proofsByDate?.[todayKey]?.length))
+            }
             variant={isCompletedToday ? "secondary" : "default"}
           >
             <Text>
               {isCompletedToday ? "Unmark today" : "I did this today"}
             </Text>
           </Button>
+
+          {isCompletedToday && (
+            <Button
+              variant="outline"
+              disabled={isUpdating}
+              onPress={handleAddTodayProof}
+            >
+              <Text>Add camera + GPS proof for today</Text>
+            </Button>
+          )}
+
+          {habit.proofsByDate?.[todayKey] &&
+            habit.proofsByDate[todayKey]!.length > 0 && (
+              <View className="gap-2 mt-4">
+                <Text className="font-semibold">Today&apos;s proofs</Text>
+                <ScrollView horizontal className="flex-row gap-3 py-2">
+                  {habit.proofsByDate[todayKey]!.map(
+                    function mapProof(proof, index) {
+                      return (
+                        <View
+                          key={`${proof.createdAt}-${index}`}
+                          className="mr-3"
+                        >
+                          {proof.photoUri && (
+                            <Image
+                              source={{ uri: proof.photoUri }}
+                              className="w-24 h-24 rounded-lg bg-muted"
+                            />
+                          )}
+                          <Text variant="muted" className="mt-1 text-[11px]">
+                            {formatTime(proof.createdAt)} ·{" "}
+                            {proof.location
+                              ? `${proof.location.latitude.toFixed(
+                                  3
+                                )}, ${proof.location.longitude.toFixed(3)}`
+                              : "N/A"}
+                          </Text>
+                          <Button
+                            variant="outline"
+                            className="absolute -top-3 -right-3 justify-center items-center mt-1 w-7 h-7 rounded-full backdrop-blur-xl bg-background/50"
+                            disabled={isUpdating}
+                            onPress={function onPress() {
+                              void handleDeleteTodayProof(index);
+                            }}
+                          >
+                            <Icon
+                              as={Trash2}
+                              className="text-destructive"
+                              size={14}
+                            />
+                          </Button>
+                        </View>
+                      );
+                    }
+                  )}
+                </ScrollView>
+              </View>
+            )}
         </View>
 
         <View className="gap-3">
