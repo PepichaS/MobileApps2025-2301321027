@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "Just Commit.",
-    "slug": "just-commit.",
+    "name": "Just Commit",
+    "slug": "just-commit",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -59,7 +59,7 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "994c598e-e5c7-4da7-9c53-ccb66bc1b046"
+        "projectId": "ef7b152d-5da5-421f-9be7-9559dbaf9efb"
       }
     },
     "owner": "pepichas"
