@@ -24,7 +24,12 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION"
+      ],
+      "package": "com.pepichas.app"
     },
     "web": {
       "favicon": "./assets/favicon.png",
@@ -50,6 +55,13 @@
     ],
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "994c598e-e5c7-4da7-9c53-ccb66bc1b046"
+      }
+    },
+    "owner": "pepichas"
   }
 }

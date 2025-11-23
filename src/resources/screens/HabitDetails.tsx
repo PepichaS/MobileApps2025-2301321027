@@ -1,9 +1,20 @@
 import React, { useCallback, useMemo, useState, useEffect } from "react";
-import { Alert as RNAlert, Image, ScrollView, View } from "react-native";
+import { Image, ScrollView, View } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Button } from "@/components/ui/Button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/Alert";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/AlertDialog";
 import { Text } from "@/components/ui/Text";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
@@ -19,7 +30,17 @@ import {
   cancelHabitReminder,
   scheduleHabitReminder,
 } from "@/services/NotificationService";
-import { AlertCircle, CheckCircle2, Trash2 } from "lucide-react-native";
+import {
+  AlertCircle,
+  Camera,
+  CheckCircle2,
+  Circle,
+  Edit,
+  Flame,
+  Loader2,
+  MapPin,
+  Trash2,
+} from "lucide-react-native";
 import { useInlineAlert } from "@/hooks/useInlineAlert";
 import { Textarea } from "@/components/ui/Textarea";
 import { Icon } from "@/components/ui/Icon";
@@ -134,6 +155,7 @@ export default function HabitDetails() {
   const [habit, setHabit] = useState<Habit | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isUpdating, setIsUpdating] = useState<boolean>(false);
+  const [isAddingProof, setIsAddingProof] = useState<boolean>(false);
   const { inlineAlert, showInlineAlert } = useInlineAlert();
   const [reminderEnabled, setReminderEnabled] = useState(false);
   const [reminderTime, setReminderTime] = useState("20:00");
@@ -268,11 +290,13 @@ export default function HabitDetails() {
   }
 
   async function handleAddTodayProof() {
-    if (!habit) {
+    if (!habit || isAddingProof) {
       return;
     }
 
     try {
+      setIsAddingProof(true);
+
       const cameraPermission =
         await ImagePicker.requestCameraPermissionsAsync();
 
@@ -343,6 +367,8 @@ export default function HabitDetails() {
         "Could not add proof",
         "We could not attach proof for this habit today. Please try again."
       );
+    } finally {
+      setIsAddingProof(false);
     }
   }
 
@@ -400,31 +426,7 @@ export default function HabitDetails() {
     }
   }
 
-  function confirmDeleteHabit() {
-    if (!habit) {
-      return;
-    }
-
-    RNAlert.alert(
-      "Delete habit",
-      `Are you sure you want to delete "${habit.title}"?`,
-      [
-        {
-          text: "Cancel",
-          style: "cancel",
-        },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: function onDelete() {
-            void performDeleteHabit();
-          },
-        },
-      ]
-    );
-  }
-
-  async function performDeleteHabit() {
+  async function handleDeleteHabit() {
     if (!habit) {
       return;
     }
@@ -639,10 +641,11 @@ export default function HabitDetails() {
         )}
 
         {isEditingInfo ? (
-          <View className="gap-3 mb-4">
-            <Text variant="h1" className="mb-1">
-              Edit habit
-            </Text>
+          <View className="gap-4 p-4 mb-6 rounded-2xl border border-border bg-card">
+            <View className="flex-row justify-between items-center">
+              <Text className="text-lg font-semibold">Edit Habit</Text>
+              <Icon as={Edit} size={20} className="text-muted-foreground" />
+            </View>
 
             <View className="gap-2">
               <Label>Habit name</Label>
@@ -654,7 +657,7 @@ export default function HabitDetails() {
             </View>
 
             <View className="gap-2">
-              <Label>Description</Label>
+              <Label>Description (optional)</Label>
               <Textarea
                 value={editDescription}
                 onChangeText={setEditDescription}
@@ -677,7 +680,7 @@ export default function HabitDetails() {
                 disabled={isUpdating}
                 className="flex-1"
               >
-                <Text>Save</Text>
+                <Text>Save Changes</Text>
               </Button>
               <Button
                 variant="outline"
@@ -690,34 +693,222 @@ export default function HabitDetails() {
             </View>
           </View>
         ) : (
-          <View className="gap-2 mb-4">
-            <Text variant="h1" className="mb-1">
-              {habit.title}
-            </Text>
+          <View className="gap-4 mb-6">
+            {/* Header Card */}
+            <View className="p-5 rounded-2xl border border-border bg-card">
+              <Text className="mb-2 text-2xl font-bold">{habit.title}</Text>
 
-            {habit.description && (
-              <Text variant="muted">{habit.description}</Text>
-            )}
+              {habit.description && (
+                <Text variant="muted" className="mb-4">
+                  {habit.description}
+                </Text>
+              )}
 
-            <Text variant="muted">
-              Target {habit.goalDays} days · Current streak{" "}
-              {habit.currentStreak}
-            </Text>
+              {/* Stats Grid */}
+              <View className="flex-row gap-3 mb-4">
+                <View className="flex-1 p-3 rounded-xl bg-primary/5">
+                  <Text variant="muted" className="mb-1 text-xs">
+                    Progress
+                  </Text>
+                  <Text className="text-xl font-bold">
+                    {habit.history.length}/{habit.goalDays}
+                  </Text>
+                  <Text variant="muted" className="text-xs">
+                    days
+                  </Text>
+                </View>
 
-            <Button
-              variant="outline"
-              onPress={handleStartEditInfo}
-              disabled={isUpdating}
-              className="mt-1"
-            >
-              <Text>Edit habit info</Text>
-            </Button>
+                {habit.currentStreak > 0 && (
+                  <View className="flex-1 p-3 rounded-xl bg-destructive/10">
+                    <View className="flex-row gap-1 items-center mb-1">
+                      <Icon as={Flame} size={12} className="text-destructive" />
+                      <Text variant="muted" className="text-xs">
+                        Streak
+                      </Text>
+                    </View>
+                    <Text className="text-xl font-bold text-destructive">
+                      {habit.currentStreak}
+                    </Text>
+                    <Text variant="muted" className="text-xs">
+                      days
+                    </Text>
+                  </View>
+                )}
+              </View>
+
+              <Button
+                variant="outline"
+                onPress={handleStartEditInfo}
+                disabled={isUpdating}
+                size="sm"
+              >
+                <Icon as={Edit} size={16} />
+                <Text>Edit Details</Text>
+              </Button>
+            </View>
           </View>
         )}
 
-        <View className="gap-2 mb-4">
+        {/* Today's Completion - Prominent */}
+        <View className="gap-4 mb-6">
+          <View
+            className={`p-5 rounded-2xl border-2 ${
+              isCompletedToday
+                ? "bg-primary/5 border-primary/30"
+                : "bg-card border-border"
+            }`}
+          >
+            <View className="flex-row justify-between items-center mb-3">
+              <Text className="text-lg font-semibold">Today's Habit</Text>
+              {isCompletedToday && (
+                <View className="px-3 py-1 rounded-full bg-primary/10">
+                  <Text className="text-xs font-bold text-primary">✓ Done</Text>
+                </View>
+              )}
+            </View>
+
+            {habit.completionTimesByDate?.[todayKey] && (
+              <Text variant="muted" className="mb-3 text-xs">
+                Completed at{" "}
+                {formatTime(habit.completionTimesByDate[todayKey]!)}
+              </Text>
+            )}
+
+            <Button
+              onPress={handleToggleToday}
+              disabled={
+                isUpdating ||
+                (isCompletedToday &&
+                  Boolean(habit.proofsByDate?.[todayKey]?.length))
+              }
+              variant={isCompletedToday ? "secondary" : "default"}
+              size="lg"
+              className="mb-3"
+            >
+              <Icon as={isCompletedToday ? CheckCircle2 : Circle} size={20} />
+              <Text>{isCompletedToday ? "Completed!" : "Mark as Done"}</Text>
+            </Button>
+
+            {isCompletedToday && (
+              <Button
+                variant="outline"
+                disabled={isUpdating || isAddingProof}
+                onPress={handleAddTodayProof}
+                size="lg"
+                className="bg-primary/5"
+              >
+                {isAddingProof ? (
+                  <>
+                    <Icon as={Loader2} size={20} className="animate-spin" />
+                    <Text>Adding Proof...</Text>
+                  </>
+                ) : (
+                  <>
+                    <Icon as={Camera} size={20} />
+                    <Text>Add Photo + GPS Proof</Text>
+                  </>
+                )}
+              </Button>
+            )}
+
+            {!isCompletedToday && (
+              <Text variant="muted" className="mt-2 text-xs text-center">
+                Complete today's habit to add photo proof
+              </Text>
+            )}
+          </View>
+
+          {/* Today's Proofs Gallery */}
+          {habit.proofsByDate?.[todayKey] &&
+            habit.proofsByDate[todayKey]!.length > 0 && (
+              <View className="p-4 pb-2 rounded-2xl border border-primary/20 bg-primary/5">
+                <View className="flex-row justify-between items-center mb-2.5">
+                  <View className="flex-row gap-2 items-center">
+                    <Icon as={Camera} size={18} className="text-primary" />
+                    <Text className="font-semibold">Today's Proofs</Text>
+                  </View>
+                  <View className="px-2 py-1 rounded-full bg-primary/20">
+                    <Text className="text-xs font-bold text-primary">
+                      {habit.proofsByDate[todayKey]!.length}
+                    </Text>
+                  </View>
+                </View>
+
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  className="py-3"
+                >
+                  <View className="flex-row gap-3 last:mr-2">
+                    {habit.proofsByDate[todayKey]!.map(
+                      function mapProof(proof, index) {
+                        return (
+                          <View
+                            key={`${proof.createdAt}-${index}`}
+                            className="relative"
+                          >
+                            {proof.photoUri && (
+                              <Image
+                                source={{ uri: proof.photoUri }}
+                                className="w-32 h-32 rounded-xl bg-muted"
+                                resizeMode="cover"
+                              />
+                            )}
+
+                            {/* Overlay Info */}
+                            <View className="absolute right-0 bottom-0 left-0 p-2 py-1.5 rounded-b-xl bg-black/70">
+                              <Text className="text-white text-[10px] font-medium">
+                                {formatTime(proof.createdAt)}
+                              </Text>
+                              {proof.location && (
+                                <View className="flex-row items-center gap-1 mt-0.5">
+                                  <Icon
+                                    as={MapPin}
+                                    size={10}
+                                    className="text-white"
+                                  />
+                                  <Text className="text-white text-[9px]">
+                                    {proof.location.latitude.toFixed(3)},{" "}
+                                    {proof.location.longitude.toFixed(3)}
+                                  </Text>
+                                </View>
+                              )}
+                            </View>
+
+                            {/* Delete Button */}
+                            <Button
+                              variant="outline"
+                              className="absolute -top-2 -right-2 justify-center items-center w-8 h-8 rounded-full bg-destructive/90 border-destructive"
+                              disabled={isUpdating}
+                              onPress={function onPress() {
+                                void handleDeleteTodayProof(index);
+                              }}
+                            >
+                              <Icon
+                                as={Trash2}
+                                className="text-white"
+                                size={14}
+                              />
+                            </Button>
+                          </View>
+                        );
+                      }
+                    )}
+                  </View>
+                </ScrollView>
+              </View>
+            )}
+        </View>
+
+        {/* Reminder Settings */}
+        <View className="gap-3 p-4 mb-6 rounded-2xl border border-border bg-card">
           <View className="flex-row justify-between items-center">
-            <Label>Reminder</Label>
+            <View className="flex-1">
+              <Text className="mb-1 font-semibold">Daily Reminder</Text>
+              <Text variant="muted" className="text-xs">
+                Get notified at a specific time each day
+              </Text>
+            </View>
             <Switch
               checked={reminderEnabled}
               onCheckedChange={function onToggle(checked) {
@@ -725,118 +916,73 @@ export default function HabitDetails() {
               }}
             />
           </View>
-          <Input
-            placeholder="08:30"
-            value={reminderTime}
-            onChangeText={setReminderTime}
-            editable={reminderEnabled}
-          />
-          {habit.reminder?.enabled && (
-            <Text variant="muted">
-              Current reminder time: {habit.reminder.time}
-            </Text>
-          )}
-          <Button
-            variant="outline"
-            disabled={isUpdating}
-            onPress={handleSaveReminder}
-          >
-            <Text>Save reminder</Text>
-          </Button>
-        </View>
 
-        <View className="gap-3 px-4 py-3 mb-6 rounded-xl border border-border bg-card">
-          <Text variant="large" className="mb-1">
-            Today
-          </Text>
-          <Text variant="muted" className="mb-3">
-            Mark whether you have completed this habit today to keep your streak
-            going.
-          </Text>
-
-          {habit.completionTimesByDate?.[todayKey] && (
-            <Text variant="muted" className="text-xs">
-              Completed at {formatTime(habit.completionTimesByDate[todayKey]!)}
-            </Text>
-          )}
-
-          <Button
-            onPress={handleToggleToday}
-            disabled={
-              isUpdating ||
-              (isCompletedToday &&
-                Boolean(habit.proofsByDate?.[todayKey]?.length))
-            }
-            variant={isCompletedToday ? "secondary" : "default"}
-          >
-            <Text>
-              {isCompletedToday ? "Unmark today" : "I did this today"}
-            </Text>
-          </Button>
-
-          {isCompletedToday && (
-            <Button
-              variant="outline"
-              disabled={isUpdating}
-              onPress={handleAddTodayProof}
-            >
-              <Text>Add camera + GPS proof for today</Text>
-            </Button>
-          )}
-
-          {habit.proofsByDate?.[todayKey] &&
-            habit.proofsByDate[todayKey]!.length > 0 && (
-              <View className="gap-2 mt-4">
-                <Text className="font-semibold">Today&apos;s proofs</Text>
-                <ScrollView horizontal className="flex-row gap-3 py-2">
-                  {habit.proofsByDate[todayKey]!.map(
-                    function mapProof(proof, index) {
-                      return (
-                        <View
-                          key={`${proof.createdAt}-${index}`}
-                          className="mr-3"
-                        >
-                          {proof.photoUri && (
-                            <Image
-                              source={{ uri: proof.photoUri }}
-                              className="w-24 h-24 rounded-lg bg-muted"
-                            />
-                          )}
-                          <Text variant="muted" className="mt-1 text-[11px]">
-                            {formatTime(proof.createdAt)} ·{" "}
-                            {proof.location
-                              ? `${proof.location.latitude.toFixed(
-                                  3
-                                )}, ${proof.location.longitude.toFixed(3)}`
-                              : "N/A"}
-                          </Text>
-                          <Button
-                            variant="outline"
-                            className="absolute -top-3 -right-3 justify-center items-center mt-1 w-7 h-7 rounded-full backdrop-blur-xl bg-background/50"
-                            disabled={isUpdating}
-                            onPress={function onPress() {
-                              void handleDeleteTodayProof(index);
-                            }}
-                          >
-                            <Icon
-                              as={Trash2}
-                              className="text-destructive"
-                              size={14}
-                            />
-                          </Button>
-                        </View>
-                      );
-                    }
-                  )}
-                </ScrollView>
+          {reminderEnabled && (
+            <>
+              <View className="gap-2">
+                <Label className="text-xs">Time (24h format)</Label>
+                <Input
+                  placeholder="08:30"
+                  value={reminderTime}
+                  onChangeText={setReminderTime}
+                  editable={reminderEnabled}
+                />
               </View>
-            )}
+              {habit.reminder?.enabled && (
+                <Text variant="muted" className="text-xs">
+                  Current: {habit.reminder.time}
+                </Text>
+              )}
+              <Button
+                variant="outline"
+                disabled={isUpdating}
+                onPress={handleSaveReminder}
+                size="sm"
+              >
+                <Text>Save Reminder</Text>
+              </Button>
+            </>
+          )}
         </View>
 
-        <View className="gap-3">
-          <Button variant="destructive" onPress={confirmDeleteHabit}>
-            <Text>Delete habit</Text>
-          </Button>
+        {/* Danger Zone */}
+        <View className="p-4 rounded-2xl border border-destructive/30 bg-destructive/5">
+          <Text className="mb-2 font-semibold text-destructive">
+            Danger Zone
+          </Text>
+          <Text variant="muted" className="mb-3 text-xs">
+            Deleting this habit will remove all progress and proofs permanently
+          </Text>
+
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="destructive" size="sm">
+                <Icon as={Trash2} size={16} className="text-white" />
+                <Text>Delete Habit</Text>
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete habit?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Are you sure you want to delete "{habit?.title}"? This will
+                  permanently remove all progress, proofs, and cannot be undone.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>
+                  <Text>Cancel</Text>
+                </AlertDialogCancel>
+                <AlertDialogAction
+                  onPress={function onPress() {
+                    void handleDeleteHabit();
+                  }}
+                >
+                  <Text>Delete</Text>
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </View>
       </>
     );
