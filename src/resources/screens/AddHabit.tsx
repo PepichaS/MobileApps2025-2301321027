@@ -1,17 +1,19 @@
 import React, { useState } from "react";
-import { ScrollView, View } from "react-native";
+import { Pressable, ScrollView, View } from "react-native";
 import { useRouter } from "expo-router";
+import { Bell, CheckCircle2, Info, Target, Zap } from "lucide-react-native";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { Text } from "@/components/ui/Text";
+import { Icon } from "@/components/ui/Icon";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/Alert";
 import type { Habit } from "@/models/Habit";
 import { saveHabit } from "@/storage/HabitStorage";
 import { Textarea } from "@/components/ui/Textarea";
 import { Switch } from "@/components/ui/Switch";
 import { scheduleHabitReminder } from "@/services/NotificationService";
-import { AlertCircle, CheckCircle2 } from "lucide-react-native";
+import { AlertCircle } from "lucide-react-native";
 import { useInlineAlert } from "@/hooks/useInlineAlert";
 
 function isValidTimeString(value: string): boolean {
@@ -47,18 +49,59 @@ function createHabitId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+const GOAL_PRESETS = [
+  {
+    days: 7,
+    label: "1 Week",
+    description: "Start small",
+    icon: Zap,
+    color: "text-blue-500",
+    bgColor: "bg-blue-500/10",
+  },
+  {
+    days: 21,
+    label: "21 Days",
+    description: "Build the habit",
+    icon: Target,
+    color: "text-green-500",
+    bgColor: "bg-green-500/10",
+  },
+  {
+    days: 30,
+    label: "1 Month",
+    description: "Solid foundation",
+    icon: CheckCircle2,
+    color: "text-purple-500",
+    bgColor: "bg-purple-500/10",
+  },
+  {
+    days: 66,
+    label: "66 Days",
+    description: "Science-backed",
+    icon: Info,
+    color: "text-amber-500",
+    bgColor: "bg-amber-500/10",
+  },
+];
+
 export default function AddHabit() {
   const router = useRouter();
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [goalDays, setGoalDays] = useState("21");
+  const [selectedPreset, setSelectedPreset] = useState(21);
   const [reminderEnabled, setReminderEnabled] = useState(false);
   const [reminderTime, setReminderTime] = useState("20:00");
   const [isSaving, setIsSaving] = useState(false);
   const { inlineAlert, showInlineAlert } = useInlineAlert();
 
   const hasError = title.trim().length === 0 || Number.isNaN(Number(goalDays));
+
+  function handlePresetSelect(days: number) {
+    setSelectedPreset(days);
+    setGoalDays(String(days));
+  }
 
   async function handleSave() {
     const cleanedTitle = title.trim();
@@ -75,7 +118,11 @@ export default function AddHabit() {
       return;
     }
 
-    if (reminderEnabled && cleanedReminderTime && !isValidTimeString(cleanedReminderTime)) {
+    if (
+      reminderEnabled &&
+      cleanedReminderTime &&
+      !isValidTimeString(cleanedReminderTime)
+    ) {
       showInlineAlert(
         "destructive",
         "Check reminder time",
@@ -153,11 +200,16 @@ export default function AddHabit() {
   }
 
   return (
-    <ScrollView className="flex-1 bg-background" contentContainerClassName="px-4 py-6 gap-6">
+    <ScrollView
+      className="flex-1 bg-background"
+      contentContainerClassName="px-4 py-6 gap-6"
+    >
       {inlineAlert && (
         <Alert
           variant={inlineAlert.variant}
-          icon={inlineAlert.variant === "destructive" ? AlertCircle : CheckCircle2}
+          icon={
+            inlineAlert.variant === "destructive" ? AlertCircle : CheckCircle2
+          }
           className="mb-4"
         >
           <AlertTitle>{inlineAlert.title}</AlertTitle>
@@ -165,74 +217,180 @@ export default function AddHabit() {
         </Alert>
       )}
 
+      {/* Header */}
       <View className="gap-2">
-        <Text variant="h1">Add Habit</Text>
+        <Text className="text-3xl font-bold">Create New Habit</Text>
         <Text variant="muted">
-          Give your habit a clear name and pick how many days you want to commit
-          to it.
+          Let's build something great together! Start by giving your habit a
+          name.
         </Text>
       </View>
 
-      <View className="gap-4">
+      {/* Step 1: Name */}
+      <View className="gap-4 p-5 rounded-2xl border border-border bg-card">
+        <View className="flex-row gap-2 items-center">
+          <View className="justify-center items-center w-8 h-8 rounded-full bg-primary">
+            <Text className="text-sm font-bold text-primary-foreground">1</Text>
+          </View>
+          <Text className="text-lg font-semibold">Name your habit</Text>
+        </View>
+
         <View className="gap-2">
-          <Label>Habit name</Label>
           <Input
-            placeholder="e.g. Code for 30 minutes"
+            placeholder="e.g., Morning workout, Read 30 minutes, etc..."
             value={title}
             onChangeText={setTitle}
             autoFocus
             returnKeyType="next"
+            className="text-base"
           />
-        </View>
-
-        <View className="gap-2">
-          <Label>Description (optional)</Label>
-          <Textarea
-            placeholder="Why is this habit important? How will you do it?"
-            value={description}
-            onChangeText={setDescription}
-          />
-        </View>
-
-        <View className="gap-2">
-          <Label>Target days</Label>
-          <Input
-            placeholder="21"
-            value={goalDays}
-            onChangeText={setGoalDays}
-            keyboardType="number-pad"
-          />
-          <Text variant="muted">
-            How many days in a row you are aiming to complete this habit.
-          </Text>
-        </View>
-
-        <View className="gap-2">
-          <View className="flex-row justify-between items-center">
-            <Label>Daily reminder</Label>
-            <Switch
-              checked={reminderEnabled}
-              onCheckedChange={function onToggle(checked) {
-                setReminderEnabled(Boolean(checked));
-              }}
-            />
-          </View>
-          <Input
-            placeholder="08:30"
-            value={reminderTime}
-            onChangeText={setReminderTime}
-            editable={reminderEnabled}
-          />
-          <Text variant="muted">
-            Set an optional daily reminder time in 24h format (HH:MM).
+          <Text variant="muted" className="text-xs">
+            💡 Tip: Be specific! "Run 3km" is better than "Exercise"
           </Text>
         </View>
       </View>
 
-      <View className="gap-3 mt-4">
-        <Button onPress={handleSave} disabled={hasError || isSaving}>
-          <Text>{isSaving ? "Saving…" : "Save habit"}</Text>
+      {/* Step 2: Description */}
+      <View className="gap-4 p-5 rounded-2xl border border-border bg-card">
+        <View className="flex-row gap-2 items-center">
+          <View className="justify-center items-center w-8 h-8 rounded-full bg-primary">
+            <Text className="text-sm font-bold text-primary-foreground">2</Text>
+          </View>
+          <Text className="text-lg font-semibold">Why does it matter?</Text>
+          <Text variant="muted" className="text-xs">
+            (optional)
+          </Text>
+        </View>
+
+        <Textarea
+          placeholder="This will help me stay healthy and energized throughout the day..."
+          value={description}
+          onChangeText={setDescription}
+          className="min-h-[80px]"
+        />
+        <Text variant="muted" className="text-xs">
+          Writing down your "why" increases success by 42%!
+        </Text>
+      </View>
+
+      {/* Step 3: Target Days */}
+      <View className="gap-4 p-5 rounded-2xl border border-border bg-card">
+        <View className="flex-row gap-2 items-center">
+          <View className="justify-center items-center w-8 h-8 rounded-full bg-primary">
+            <Text className="text-sm font-bold text-primary-foreground">3</Text>
+          </View>
+          <Text className="text-lg font-semibold">Choose your goal</Text>
+        </View>
+
+        <Text variant="muted" className="text-xs">
+          Pick a timeframe that challenges you but feels achievable
+        </Text>
+
+        {/* Preset Options */}
+        <View className="gap-2">
+          {GOAL_PRESETS.map((preset) => (
+            <Pressable
+              key={preset.days}
+              onPress={() => handlePresetSelect(preset.days)}
+              className={`flex-row items-center gap-3 p-4 rounded-xl border-2 ${
+                selectedPreset === preset.days
+                  ? "border-primary bg-primary/5"
+                  : "border-border bg-background"
+              }`}
+            >
+              <View
+                className={`w-12 h-12 rounded-xl ${preset.bgColor} items-center justify-center`}
+              >
+                <Icon as={preset.icon} size={24} className={preset.color} />
+              </View>
+              <View className="flex-1">
+                <Text className="font-semibold mb-0.5">{preset.label}</Text>
+                <Text variant="muted" className="text-xs">
+                  {preset.description}
+                </Text>
+              </View>
+              {selectedPreset === preset.days && (
+                <Icon as={CheckCircle2} size={20} className="text-primary" />
+              )}
+            </Pressable>
+          ))}
+        </View>
+
+        {/* Custom Input */}
+        <View className="gap-2 mt-2">
+          <Label className="text-xs">Or enter custom days</Label>
+          <Input
+            placeholder="Custom days"
+            value={goalDays}
+            onChangeText={(value) => {
+              setGoalDays(value);
+              setSelectedPreset(Number(value));
+            }}
+            keyboardType="number-pad"
+          />
+        </View>
+      </View>
+
+      {/* Step 4: Reminder */}
+      <View className="gap-4 p-5 rounded-2xl border border-border bg-card">
+        <View className="flex-row gap-2 items-center">
+          <View className="justify-center items-center w-8 h-8 rounded-full bg-primary">
+            <Text className="text-sm font-bold text-primary-foreground">4</Text>
+          </View>
+          <Text className="text-lg font-semibold">Set a reminder</Text>
+          <Text variant="muted" className="text-xs">
+            (optional)
+          </Text>
+        </View>
+
+        <View className="flex-row justify-between items-center p-3 rounded-xl bg-primary/5">
+          <View className="flex-row flex-1 gap-3 items-center">
+            <Icon as={Bell} size={20} className="text-primary" />
+            <View className="flex-1">
+              <Text className="font-medium">Daily notifications</Text>
+              <Text variant="muted" className="text-xs">
+                Never miss your habit
+              </Text>
+            </View>
+          </View>
+          <Switch
+            checked={reminderEnabled}
+            onCheckedChange={function onToggle(checked) {
+              setReminderEnabled(Boolean(checked));
+            }}
+          />
+        </View>
+
+        {reminderEnabled && (
+          <View className="gap-2">
+            <Label className="text-xs">Reminder time (24h format)</Label>
+            <Input
+              placeholder="20:00"
+              value={reminderTime}
+              onChangeText={setReminderTime}
+            />
+            <Text variant="muted" className="text-xs">
+              ⏰ We'll remind you at {reminderTime || "your chosen time"} every
+              day
+            </Text>
+          </View>
+        )}
+      </View>
+
+      {/* Create Button */}
+      <View className="gap-3">
+        <Button onPress={handleSave} disabled={hasError || isSaving} size="lg">
+          <Icon as={CheckCircle2} size={20} />
+          <Text className="text-base font-semibold">
+            {isSaving ? "Creating your habit..." : "Create Habit"}
+          </Text>
         </Button>
+
+        {hasError && (
+          <Text variant="muted" className="text-xs text-center">
+            Please fill in the habit name and select a target
+          </Text>
+        )}
       </View>
     </ScrollView>
   );
