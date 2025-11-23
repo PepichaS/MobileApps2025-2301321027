@@ -380,7 +380,11 @@ export default function AddHabit() {
       {/* Create Button */}
       <View className="gap-3">
         <Button onPress={handleSave} disabled={hasError || isSaving} size="lg">
-          <Icon as={CheckCircle2} size={20} />
+          <Icon
+            as={CheckCircle2}
+            size={20}
+            className="text-primary-foreground"
+          />
           <Text className="text-base font-semibold">
             {isSaving ? "Creating your habit..." : "Create Habit"}
           </Text>

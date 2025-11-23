@@ -247,7 +247,7 @@ export default function Dashboard() {
           Start by creating your first habit. Every expert was once a beginner!
         </Text>
         <Button onPress={handleAddHabit} size="lg">
-          <Icon as={Plus} size={20} />
+          <Icon as={Plus} size={20} className="text-primary-foreground" />
           <Text>Create your first habit</Text>
         </Button>
       </View>
@@ -349,57 +349,41 @@ export default function Dashboard() {
       <View className="gap-6 px-4 py-6">
         {/* Welcome Banner - First Time Only */}
         {showWelcome && habits.length === 0 && (
-          <View className="relative p-5 rounded-2xl border-2 bg-primary border-primary">
+          <View className="relative p-5 rounded-2xl border bg-accent border-border dark:bg-accent/50">
             <Pressable
               onPress={dismissWelcome}
-              className="absolute top-3 right-3 justify-center items-center w-8 h-8 rounded-full bg-background/20"
+              className="absolute top-3 right-3 justify-center items-center w-7 h-7 rounded-full border border-border bg-background/60"
             >
-              <Icon as={X} size={16} className="text-primary-foreground" />
+              <Icon as={X} size={14} className="text-muted-foreground" />
             </Pressable>
 
             <View className="flex-row gap-3 items-start pr-8">
-              <View className="justify-center items-center w-12 h-12 rounded-full bg-primary-foreground/20">
-                <Icon
-                  as={Lightbulb}
-                  size={24}
-                  className="text-primary-foreground"
-                />
+              <View className="justify-center items-center w-12 h-12 rounded-full bg-primary/10">
+                <Icon as={Lightbulb} size={24} className="text-primary" />
               </View>
               <View className="flex-1">
-                <Text className="mb-2 text-lg font-bold text-primary-foreground">
-                  Welcome to Just Commit.! 👋
+                <Text className="mb-2 text-lg font-bold text-accent-foreground">
+                  Welcome to Just Commit! 👋
                 </Text>
-                <Text className="mb-3 text-sm text-primary-foreground/90">
+                <Text className="mb-3 text-sm text-muted-foreground">
                   Building habits is simple here:
                 </Text>
                 <View className="gap-2">
                   <View className="flex-row gap-2 items-start">
-                    <Icon
-                      as={Check}
-                      size={16}
-                      className="text-primary-foreground"
-                    />
-                    <Text className="flex-1 text-xs text-primary-foreground/90">
+                    <Icon as={Check} size={16} className="text-primary" />
+                    <Text className="flex-1 text-xs text-muted-foreground">
                       Create a habit and mark it complete daily
                     </Text>
                   </View>
                   <View className="flex-row gap-2 items-start">
-                    <Icon
-                      as={Check}
-                      size={16}
-                      className="text-primary-foreground"
-                    />
-                    <Text className="flex-1 text-xs text-primary-foreground/90">
+                    <Icon as={Check} size={16} className="text-primary" />
+                    <Text className="flex-1 text-xs text-muted-foreground">
                       Add photo + GPS proof to make it stick
                     </Text>
                   </View>
                   <View className="flex-row gap-2 items-start">
-                    <Icon
-                      as={Check}
-                      size={16}
-                      className="text-primary-foreground"
-                    />
-                    <Text className="flex-1 text-xs text-primary-foreground/90">
+                    <Icon as={Check} size={16} className="text-primary" />
+                    <Text className="flex-1 text-xs text-muted-foreground">
                       Build streaks and celebrate your wins!
                     </Text>
                   </View>
