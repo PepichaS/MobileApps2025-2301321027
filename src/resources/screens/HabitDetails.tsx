@@ -33,6 +33,7 @@ import {
 import {
   AlertCircle,
   Camera,
+  Check,
   CheckCircle2,
   Circle,
   Edit,
@@ -761,8 +762,9 @@ export default function HabitDetails() {
             <View className="flex-row justify-between items-center mb-3">
               <Text className="text-lg font-semibold">Today's Habit</Text>
               {isCompletedToday && (
-                <View className="px-3 py-1 rounded-full bg-primary/10">
-                  <Text className="text-xs font-bold text-primary">✓ Done</Text>
+                <View className="flex-row gap-1 items-center px-3 py-1 rounded-full bg-primary/10">
+                  <Icon as={Check} size={12} className="text-primary" />
+                  <Text className="text-xs font-bold text-primary">Done</Text>
                 </View>
               )}
             </View>
@@ -785,7 +787,11 @@ export default function HabitDetails() {
               size="lg"
               className="mb-3"
             >
-              <Icon as={isCompletedToday ? CheckCircle2 : Circle} size={20} />
+              <Icon
+                as={isCompletedToday ? CheckCircle2 : Circle}
+                size={20}
+                className={isCompletedToday ? "":"text-primary-foreground"}
+              />
               <Text>{isCompletedToday ? "Completed!" : "Mark as Done"}</Text>
             </Button>
 
@@ -799,7 +805,11 @@ export default function HabitDetails() {
               >
                 {isAddingProof ? (
                   <>
-                    <Icon as={Loader2} size={20} className="animate-spin" />
+                    <Icon
+                      as={Loader2}
+                      size={20}
+                      className="animate-spin text-primary-foreground"
+                    />
                     <Text>Adding Proof...</Text>
                   </>
                 ) : (
@@ -877,7 +887,7 @@ export default function HabitDetails() {
 
                             {/* Delete Button */}
                             <Button
-                              variant="outline"
+                              variant="destructive"
                               className="absolute -top-2 -right-2 justify-center items-center w-8 h-8 rounded-full bg-destructive/90 border-destructive"
                               disabled={isUpdating}
                               onPress={function onPress() {
