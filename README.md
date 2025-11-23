@@ -121,8 +121,6 @@ npx expo start
 src/apk/
 ```
 
-Примерно име (препоръка): `just-commit-preview.apk`
-
 ### Инсталация на телефона
 
 1. Копирай APK файла от `src/apk/` на Android устройството (USB, AirDrop-alternative, Google Drive и т.н.).
